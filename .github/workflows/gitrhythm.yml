@@ -163,20 +163,18 @@ jobs:
       - name: Set up CodeQL
         uses: github/codeql-action/setup@v2
         with:
-          languages: 'python'  # Change to your language(s) if needed
+          languages: 'python'
 
       - name: Initialize CodeQL Database
         uses: github/codeql-action/init@v2
         with:
-          languages: 'python'  # Specify your language(s) here
+          languages: 'python'
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v2
 
       - name: Upload CodeQL Results
         uses: github/codeql-action/upload-results@v2
-        with:
-          category: 'Security'
 
       - name: Automated Code Testing
         run: |

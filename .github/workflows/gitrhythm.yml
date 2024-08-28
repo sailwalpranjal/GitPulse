@@ -36,6 +36,7 @@ jobs:
 
       - name: Configure Git
         run: |
+          set -e
           set -x 
           git config --global user.name "sailwalpranjal"
           git config --global user.email "pranjalsailwal09@gmail.com"
@@ -51,7 +52,7 @@ jobs:
 
           if [ "$extra_commits" -gt 0 ]; then
             for j in $(seq 1 "$extra_commits"); do
-              file_name="file_$(date +%s).txt"
+              file_name="file_$RANDOM.txt"
               printf "Generated content for %s - %s\n" "$file_name" "$(date)" > "$file_name"
               git add "$file_name"
 
@@ -77,26 +78,20 @@ jobs:
                 "Improved database interactions"
                 "Optimized application startup"
               )
-              commit_message=${commit_messages[$((RANDOM % ${#commit_messages[@]}))]}
-
-              if ! git commit -m "$commit_message"; then
-                echo "No changes to commit for $file_name"
-              fi
+              commit_message=${commit_messages[$RANDOM % ${#commit_messages[@]}]}
+              git commit -m "$commit_message"
             done
           else
             echo "Target commit count for today already achieved."
           fi
 
       - name: Push changes
-        run: |
-          set -e
-          if ! git push; then
-            echo "No changes to push."
-          fi
+        run: git push
 
       - name: Create Issues Automatically
         if: ${{ github.ref == 'refs/heads/main' }}
         run: |
+          set -e
           set -x 
           issue_titles=(
             "Investigate performance issue"
@@ -110,7 +105,7 @@ jobs:
             "Investigate memory leak"
             "Enhance security features"
           )
-          issue_title=${issue_titles[$((RANDOM % ${#issue_titles[@]}))]}
+          issue_title=${issue_titles[$RANDOM % ${#issue_titles[@]}]}
           
           curl --max-time 30 -X POST \
             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
@@ -121,8 +116,9 @@ jobs:
       - name: Create Pull Request
         if: ${{ github.ref == 'refs/heads/main' }}
         run: |
+          set -e
           set -x 
-          branch_name="auto-pr-branch-$(date +%s)"
+          branch_name="auto-pr-branch-$RANDOM"
           git checkout -b "$branch_name"
           git push origin "$branch_name"
           
@@ -135,85 +131,71 @@ jobs:
       - name: Merge Pull Requests
         if: ${{ github.ref == 'refs/heads/main' }}
         run: |
-          set -x
           set -e
+          set -x 
           prs=$(curl --max-time 30 \
                 -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
                 https://api.github.com/repos/${{ github.repository }}/pulls)
           for pr in $(echo "$prs" | jq -r '.[].number'); do
-            if ! curl --max-time 30 -X PUT \
+            curl --max-time 30 -X PUT \
               -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
               -H "Content-Type: application/json" \
               -d "{\"commit_title\":\"Auto-merge PR #$pr\",\"merge_method\":\"squash\"}" \
-              https://api.github.com/repos/${{ github.repository }}/pulls/$pr/merge; then
-              echo "Failed to merge PR #$pr"
-            fi
+              https://api.github.com/repos/${{ github.repository }}/pulls/$pr/merge
           done
 
       - name: Delete Merged Branches
         run: |
+          set -e
           set -x 
           branches=$(git branch -r --merged | grep -v 'main' | grep -v 'HEAD' | sed 's/origin\///')
           for branch in $branches; do
-            if ! git push origin --delete "$branch"; then
-              echo "Failed to delete branch $branch"
-            fi
+            git push origin --delete "$branch"
           done
 
-      - name: Set up CodeQL
-        uses: github/codeql-action/setup@v2
-        with:
-          languages: 'python'
-
-      - name: Initialize CodeQL Database
-        uses: github/codeql-action/init@v2
-        with:
-          languages: 'python'
-
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v2
-
-      - name: Upload CodeQL Results
-        uses: github/codeql-action/upload-results@v2
+      - name: Run Linter
+        uses: github/super-linter@v4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEFAULT_BRANCH: main
 
       - name: Automated Code Testing
         run: |
+          set -e
           set -x 
           if [ -f "tests/test_script.sh" ]; then
-            if ! bash tests/test_script.sh; then
-              echo "Automated tests failed."
-            fi
+            bash tests/test_script.sh
           else
             echo "No test script found. Skipping tests."
           fi
 
       - name: Custom Notifications
         run: |
+          set -e
           set -x 
           if [ -n "$SLACK_WEBHOOK_URL" ]; then
-            if ! curl --max-time 30 -X POST \
+            curl --max-time 30 -X POST \
               -H 'Content-type: application/json' \
               --data '{"text":"Auto-commit workflow completed successfully!"}' \
-              "$SLACK_WEBHOOK_URL"; then
-              echo "Failed to send notification."
-            fi
+              "$SLACK_WEBHOOK_URL"
           fi
 
       - name: Cleanup
         run: |
+          set -e
           set -x 
-          find . -name "file_*.txt" -delete || echo "No files to delete."
+          find . -name "file_*.txt" -delete
 
       - name: Generate Documentation and Store Logs
         run: |
+          set -e
           set -x 
-          printf "Generating documentation based on recent changes...\n" >> logs/gitpulse.log
-          printf "Documentation generated.\n" >> logs/gitpulse.log
-          printf "Workflow completed successfully on %s\n" "$(date)" >> logs/gitpulse.log
+          echo "Generating documentation based on recent changes..."
+          echo "Documentation generated." >> logs/gitpulse.log
+          echo "Workflow completed successfully on $(date)" >> logs/gitpulse.log
           
           log_size=$(du -k "logs/gitpulse.log" | cut -f1)
           if [ "$log_size" -gt 1024 ]; then
-            if ! gzip logs/gitpulse.log; then
-              echo "Failed to archive log file."
-            fi
+            gzip logs/gitpulse.log
+            echo "Log file archived."
           fi

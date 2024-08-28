@@ -38,16 +38,16 @@ jobs:
           set -x 
           git config --global user.name "sailwalpranjal"
           git config --global user.email "pranjalsailwal09@gmail.com"
-
       - name: Track Commits and Generate Changes
         id: track_commits
         run: |
+          set -e
           set -x 
           commit_count=$(git log --since="midnight" --pretty=format:"%h" | wc -l)
           target_commits=30
           extra_commits=$((target_commits - commit_count))
 
-          if [ $extra_commits -gt 0 ]; then
+          if [ "$extra_commits" -gt 0 ]; then
             for j in $(seq 1 "$extra_commits"); do
               file_name="file_$RANDOM.txt"
               printf "Generated content for %s - %s\n" "$file_name" "$(date)" > "$file_name"
@@ -123,10 +123,12 @@ jobs:
             -d "{\"title\":\"Auto PR - $branch_name\",\"head\":\"$branch_name\",\"base\":\"main\",\"body\":\"This is an automatically generated pull request.\"}" \
             https://api.github.com/repos/${{ github.repository }}/pulls
 
+            
       - name: Merge Pull Requests
         if: ${{ github.ref == 'refs/heads/main' }}
         run: |
-          set -x 
+          set -x
+          set -e
           prs=$(curl --max-time 30 \
                 -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
                 https://api.github.com/repos/${{ github.repository }}/pulls)

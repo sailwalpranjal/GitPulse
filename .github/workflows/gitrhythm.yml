@@ -1,4 +1,3 @@
----
 name: Advanced Auto Commit and Repository Management
 
 on:
@@ -22,20 +21,20 @@ jobs:
           mkdir -p .github/workflows src tests config docs logs scripts data cleanup
 
           # Create sample files with explanations
-          echo "print('Example source code')" > src/example_code.py
-          echo -e "#!/bin/bash\n# Sample test script\n\necho \"Executing automated tests...\"" > tests/test_script.sh
+          printf "print('Example source code')\n" > src/example_code.py
+          printf "#!/bin/bash\n# Sample test script\n\necho \"Executing automated tests...\"\n" > tests/test_script.sh
           chmod +x tests/test_script.sh
 
-          echo -e "configuration:\n  setting: value" > config/config.yml
-          echo "# GitPulse\n\nThis repository handles automated commits and repository management." > docs/README.md
-          echo "Log file initialized for workflow tracking." > logs/gitpulse.log
+          printf "configuration:\n  setting: value\n" > config/config.yml
+          printf "# GitPulse\n\nThis repository handles automated commits and repository management.\n" > docs/README.md
+          printf "Log file initialized for workflow tracking.\n" > logs/gitpulse.log
 
-          echo -e "#!/bin/bash\n# Notification script\n\necho \"Sending notifications...\"" > scripts/custom_notifications.sh
+          printf "#!/bin/bash\n# Notification script\n\necho \"Sending notifications...\"\n" > scripts/custom_notifications.sh
           chmod +x scripts/custom_notifications.sh
 
-          echo "Sample data for testing purposes." > data/sample_data.txt
+          printf "Sample data for testing purposes.\n" > data/sample_data.txt
 
-          echo -e "#!/bin/bash\n# Cleanup script\n\necho \"Performing cleanup...\"" > cleanup/cleanup.sh
+          printf "#!/bin/bash\n# Cleanup script\n\necho \"Performing cleanup...\"\n" > cleanup/cleanup.sh
           chmod +x cleanup/cleanup.sh
 
       - name: Configure Git
@@ -60,13 +59,13 @@ jobs:
 
           # Generate extra commits if needed
           if [ $extra_commits -gt 0 ]; then
-            echo "Need to make $extra_commits more commits for today."
+            printf "Need to make %d more commits for today.\n" "$extra_commits"
 
             for i in $(seq 1 $extra_commits); do
               # Generate a random file name and content
               file_name="file_$RANDOM.txt"
-              echo "Generated content for file $file_name - $(date)" > $file_name
-              git add $file_name
+              printf "Generated content for file %s - %s\n" "$file_name" "$(date)" > "$file_name"
+              git add "$file_name"
               
               # Generate a professional commit message from a pool
               commit_messages=(
@@ -97,10 +96,10 @@ jobs:
               
               # Shorter sleep time for testing purposes
               sleep_time=$((10 + RANDOM % 30))
-              sleep $sleep_time
+              sleep "$sleep_time"
             done
           else
-            echo "Target commit count for today already achieved."
+            printf "Target commit count for today already achieved.\n"
           fi
 
       - name: Push changes
@@ -135,8 +134,8 @@ jobs:
           set -x  # Enable verbose logging
           # Automatically create a pull request
           branch_name="auto-pr-branch-$RANDOM"
-          git checkout -b $branch_name
-          git push origin $branch_name
+          git checkout -b "$branch_name"
+          git push origin "$branch_name"
           
           curl --max-time 30 -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
           -d "{\"title\":\"Auto PR - $branch_name\",\"head\":\"$branch_name\",\"base\":\"main\",\"body\":\"This is an automatically generated pull request.\"}" \
@@ -149,7 +148,7 @@ jobs:
           # Merge pull requests automatically if they pass CI checks
           prs=$(curl --max-time 30 -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
           https://api.github.com/repos/${{ github.repository }}/pulls)
-          for pr in $(echo $prs | jq -r '.[].number'); do
+          for pr in $(echo "$prs" | jq -r '.[].number'); do
             curl --max-time 30 -X PUT -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             -d "{\"commit_title\":\"Auto-merge PR #$pr\",\"merge_method\":\"squash\"}" \
             https://api.github.com/repos/${{ github.repository }}/pulls/$pr/merge
@@ -161,7 +160,7 @@ jobs:
           # Automatically delete branches after merging
           branches=$(git branch -r --merged | grep -v 'main' | grep -v 'HEAD' | sed 's/origin\///')
           for branch in $branches; do
-            git push origin --delete $branch
+            git push origin --delete "$branch"
           done
 
       - name: Run Linter
@@ -177,7 +176,7 @@ jobs:
           if [ -f "tests/test_script.sh" ]; then
             bash tests/test_script.sh
           else
-            echo "No test script found. Skipping tests."
+            printf "No test script found. Skipping tests.\n"
           fi
 
       - name: Custom Notifications
@@ -187,7 +186,7 @@ jobs:
           if [ -n "$SLACK_WEBHOOK_URL" ]; then
             curl --max-time 30 -X POST -H 'Content-type: application/json' --data \
             '{"text":"Auto-commit workflow completed successfully!"}' \
-            $SLACK_WEBHOOK_URL
+            "$SLACK_WEBHOOK_URL"
           fi
 
       - name: Cleanup
@@ -200,14 +199,14 @@ jobs:
         run: |
           set -x  # Enable verbose logging
           # Generate documentation based on changes
-          echo "Generating documentation based on recent changes..."
+          printf "Generating documentation based on recent changes...\n"
           # Here you can run your documentation generation scripts
-          echo "Documentation generated." >> logs/gitpulse.log
-          echo "Workflow completed successfully on $(date)" >> logs/gitpulse.log
+          printf "Documentation generated.\n" >> logs/gitpulse.log
+          printf "Workflow completed successfully on %s\n" "$(date)" >> logs/gitpulse.log
           
           # Archive logs if they exceed a certain size
           log_size=$(du -k "logs/gitpulse.log" | cut -f1)
-          if [ $log_size -gt 1024 ]; then
+          if [ "$log_size" -gt 1024 ]; then
             gzip logs/gitpulse.log
-            echo "Log file archived."
+            printf "Log file archived.\n"
           fi

@@ -1,4 +1,4 @@
-name: Advanced Auto Commit and Repository Management
+name: Gitrhythm for Github Activity
 
 on:
   schedule:
@@ -50,7 +50,7 @@ jobs:
           if [ $extra_commits -gt 0 ]; then
             for j in $(seq 1 $extra_commits); do
               file_name="file_$RANDOM.txt"
-              echo "Generated content for $file_name - $(date)" > $file_name
+              echo "Generated content for $file_name - $(date)" > "$file_name"
               git add "$file_name"
 
               commit_messages=(

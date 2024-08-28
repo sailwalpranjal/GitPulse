@@ -16,6 +16,7 @@ jobs:
 
       - name: Set Up Directory Structure and Files
         run: |
+          set -x  # Enable verbose logging
           # Create necessary directories
           mkdir -p .github/workflows src tests config docs logs scripts data cleanup
 
@@ -38,12 +39,14 @@ jobs:
 
       - name: Configure Git
         run: |
-          git config --global user.name "sailwalpranjal"
-          git config --global user.email "pranjalsailwal09@gmail.com"
+          set -x  # Enable verbose logging
+          git config --global user.name "Your Name"
+          git config --global user.email "your-email@example.com"
 
       - name: Track Commits and Generate Changes
         id: track_commits
         run: |
+          set -x  # Enable verbose logging
           # Check the current date
           today=$(date +'%Y-%m-%d')
 
@@ -91,8 +94,8 @@ jobs:
               
               git commit -m "$commit_message"
               
-              # Optional: Add a random sleep to simulate real commit activity
-              sleep_time=$((120 + RANDOM % 960))
+              # Shorter sleep time for testing purposes
+              sleep_time=$((10 + RANDOM % 30))
               sleep $sleep_time
             done
           else
@@ -105,6 +108,7 @@ jobs:
       - name: Create Issues Automatically
         if: ${{ github.ref == 'refs/heads/main' }}
         run: |
+          set -x  # Enable verbose logging
           # Automatically create GitHub issues
           issue_titles=(
             "Investigate performance issue"
@@ -120,36 +124,39 @@ jobs:
           )
           issue_title=${issue_titles[$RANDOM % ${#issue_titles[@]}]}
           
-          curl -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          curl --max-time 30 -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
           -d "{\"title\":\"$issue_title\",\"body\":\"Automatically generated issue\",\"labels\":[\"auto\"]}" \
           https://api.github.com/repos/${{ github.repository }}/issues
 
       - name: Create Pull Request
         if: ${{ github.ref == 'refs/heads/main' }}
         run: |
+          set -x  # Enable verbose logging
           # Automatically create a pull request
           branch_name="auto-pr-branch-$RANDOM"
           git checkout -b $branch_name
           git push origin $branch_name
           
-          curl -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          curl --max-time 30 -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
           -d "{\"title\":\"Auto PR - $branch_name\",\"head\":\"$branch_name\",\"base\":\"main\",\"body\":\"This is an automatically generated pull request.\"}" \
           https://api.github.com/repos/${{ github.repository }}/pulls
 
       - name: Merge Pull Requests
         if: ${{ github.ref == 'refs/heads/main' }}
         run: |
+          set -x  # Enable verbose logging
           # Merge pull requests automatically if they pass CI checks
-          prs=$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          prs=$(curl --max-time 30 -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
           https://api.github.com/repos/${{ github.repository }}/pulls)
           for pr in $(echo $prs | jq -r '.[].number'); do
-            curl -X PUT -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            curl --max-time 30 -X PUT -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             -d "{\"commit_title\":\"Auto-merge PR #$pr\",\"merge_method\":\"squash\"}" \
             https://api.github.com/repos/${{ github.repository }}/pulls/$pr/merge
           done
 
       - name: Delete Merged Branches
         run: |
+          set -x  # Enable verbose logging
           # Automatically delete branches after merging
           branches=$(git branch -r --merged | grep -v 'main' | grep -v 'HEAD' | sed 's/origin\///')
           for branch in $branches; do
@@ -166,6 +173,7 @@ jobs:
 
       - name: Automated Code Testing
         run: |
+          set -x  # Enable verbose logging
           # Run automated tests on the repository
           if [ -f "tests/test_script.sh" ]; then
             bash tests/test_script.sh
@@ -175,14 +183,16 @@ jobs:
 
       - name: Custom Notifications
         run: |
+          set -x  # Enable verbose logging
           # Send custom notification if configured
           if [ -n "$SLACK_WEBHOOK_URL" ]; then
-            curl -X POST -H 'Content-type: application/json' --data \
+            curl --max-time 30 -X POST -H 'Content-type: application/json' --data \
             '{"text":"Auto-commit workflow completed successfully!"}' \
             $SLACK_WEBHOOK_URL
           fi
 
       - name: Cleanup
         run: |
+          set -x  # Enable verbose logging
           # Cleanup files created during the process
           find . -name "file_*.txt" -delete

@@ -1,4 +1,4 @@
-name: Advanced Auto Commit Messages
+name: Advanced Auto Commit and Repository Management
 
 on:
   schedule:
@@ -12,7 +12,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Set Up Directory Structure and Files
         run: |
@@ -20,7 +20,7 @@ jobs:
           # Create necessary directories
           mkdir -p .github/workflows src tests config docs logs scripts data cleanup
 
-          # Create sample files
+          # Create sample files with explanations
           echo "print('Example source code')" > src/example_code.py
           echo -e "#!/bin/bash\n# Sample test script\n\necho \"Executing automated tests...\"" > tests/test_script.sh
           chmod +x tests/test_script.sh
@@ -196,3 +196,19 @@ jobs:
           set -x  # Enable verbose logging
           # Cleanup files created during the process
           find . -name "file_*.txt" -delete
+
+      - name: Generate Documentation and Store Logs
+        run: |
+          set -x  # Enable verbose logging
+          # Generate documentation based on changes
+          echo "Generating documentation based on recent changes..."
+          # Here you can run your documentation generation scripts
+          echo "Documentation generated." >> logs/gitpulse.log
+          echo "Workflow completed successfully on $(date)" >> logs/gitpulse.log
+          
+          # Archive logs if they exceed a certain size
+          log_size=$(du -k "logs/gitpulse.log" | cut -f1)
+          if [ $log_size -gt 1024 ]; then
+            gzip logs/gitpulse.log
+            echo "Log file archived."
+          fi

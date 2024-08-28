@@ -1,3 +1,4 @@
+---
 name: Advanced Auto Commit and Repository Management
 
 on:
@@ -168,8 +169,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DEFAULT_BRANCH: main
-        with:
-          args: "--quiet"
 
       - name: Automated Code Testing
         run: |

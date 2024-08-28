@@ -1,4 +1,3 @@
----
 name: Advanced Auto Commit and Repository Management
 
 on:
@@ -17,26 +16,21 @@ jobs:
       - name: Set Up Directory Structure and Files
         run: |
           set -x  
-          mkdir -p .github/workflows src tests config docs logs scripts data \
-              cleanup
+          mkdir -p .github/workflows src tests config docs logs scripts data cleanup
 
           echo "print('Example source code')" > src/example_code.py
-          echo -e "#!/bin/bash\n# Sample test script\n\necho \"Executing" \
-              "automated tests...\"" > tests/test_script.sh
+          echo -e "#!/bin/bash\n# Sample test script\n\necho \"Executing automated tests...\"" > tests/test_script.sh
           chmod +x tests/test_script.sh
 
           echo -e "configuration:\n  setting: value" > config/config.yml
-          echo "# GitPulse\n\nThis repository handles automated commits" \
-              "and repository management." > docs/README.md
+          echo "# GitPulse\n\nThis repository handles automated commits and repository management." > docs/README.md
           echo "Log file initialized for workflow tracking." > logs/gitpulse.log
 
-          echo -e "#!/bin/bash\n# Notification script\n\necho \"Sending" \
-              "notifications...\"" > scripts/custom_notifications.sh
+          echo -e "#!/bin/bash\n# Notification script\n\necho \"Sending notifications...\"" > scripts/custom_notifications.sh
           chmod +x scripts/custom_notifications.sh
 
           echo "Sample data for testing purposes." > data/sample_data.txt
-          echo -e "#!/bin/bash\n# Cleanup script\n\necho \"Performing cleanup...\"" \
-              > cleanup/cleanup.sh
+          echo -e "#!/bin/bash\n# Cleanup script\n\necho \"Performing cleanup...\"" > cleanup/cleanup.sh
           chmod +x cleanup/cleanup.sh
 
       - name: Configure Git
@@ -49,8 +43,7 @@ jobs:
         id: track_commits
         run: |
           set -x 
-          commit_count=$(git log --since="midnight" \
-              --pretty=format:"%h" | wc -l)
+          commit_count=$(git log --since="midnight" --pretty=format:"%h" | wc -l)
           target_commits=30
           extra_commits=$((target_commits - commit_count))
 
@@ -84,9 +77,6 @@ jobs:
               )
               commit_message=${commit_messages[$RANDOM % ${#commit_messages[@]}]}
               git commit -m "$commit_message"
-
-              sleep_time=$((10 + RANDOM % 30))
-              sleep $sleep_time
             done
           else
             echo "Target commit count for today already achieved."
@@ -116,9 +106,7 @@ jobs:
           curl --max-time 30 -X POST \
             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             -H "Content-Type: application/json" \
-            -d "{\"title\":\"$issue_title\","\
-               "\"body\":\"Automatically generated issue\","\
-               "\"labels\":[\"auto\"]}" \
+            -d "{\"title\":\"$issue_title\",\"body\":\"Automatically generated issue\",\"labels\":[\"auto\"]}" \
             https://api.github.com/repos/${{ github.repository }}/issues
 
       - name: Create Pull Request
@@ -132,11 +120,7 @@ jobs:
           curl --max-time 30 -X POST \
             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             -H "Content-Type: application/json" \
-            -d "{\"title\":\"Auto PR - $branch_name\","\
-               "\"head\":\"$branch_name\","\
-               "\"base\":\"main\","\
-               "\"body\":\"This is an automatically generated" \
-               "pull request.\"}" \
+            -d "{\"title\":\"Auto PR - $branch_name\",\"head\":\"$branch_name\",\"base\":\"main\",\"body\":\"This is an automatically generated pull request.\"}" \
             https://api.github.com/repos/${{ github.repository }}/pulls
 
       - name: Merge Pull Requests
@@ -150,16 +134,14 @@ jobs:
             curl --max-time 30 -X PUT \
               -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
               -H "Content-Type: application/json" \
-              -d "{\"commit_title\":\"Auto-merge PR #$pr\","\
-                 "\"merge_method\":\"squash\"}" \
+              -d "{\"commit_title\":\"Auto-merge PR #$pr\",\"merge_method\":\"squash\"}" \
               https://api.github.com/repos/${{ github.repository }}/pulls/$pr/merge
           done
 
       - name: Delete Merged Branches
         run: |
           set -x 
-          branches=$(git branch -r --merged | grep -v 'main' | grep -v 'HEAD' \
-              | sed 's/origin\///')
+          branches=$(git branch -r --merged | grep -v 'main' | grep -v 'HEAD' | sed 's/origin\///')
           for branch in $branches; do
             git push origin --delete "$branch"
           done

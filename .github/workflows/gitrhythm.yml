@@ -19,19 +19,19 @@ jobs:
           set -x  
           mkdir -p .github/workflows src tests config docs logs scripts data cleanup
 
-          echo "print('Example source code')" > src/example_code.py
-          echo "#!/bin/bash\n# Sample test script\n\necho \"Executing automated tests...\"" > tests/test_script.sh
+          printf "print('Example source code')\n" > src/example_code.py
+          printf "#!/bin/bash\n# Sample test script\n\necho \"Executing automated tests...\"\n" > tests/test_script.sh
           chmod +x tests/test_script.sh
 
-          echo "configuration:\n  setting: value" > config/config.yml
-          echo "# GitPulse\n\nThis repository handles automated commits and repository management." > docs/README.md
-          echo "Log file initialized for workflow tracking." > logs/gitpulse.log
+          printf "configuration:\n  setting: value\n" > config/config.yml
+          printf "# GitPulse\n\nThis repository handles automated commits and repository management.\n" > docs/README.md
+          printf "Log file initialized for workflow tracking.\n" > logs/gitpulse.log
 
-          echo "#!/bin/bash\n# Notification script\n\necho \"Sending notifications...\"" > scripts/custom_notifications.sh
+          printf "#!/bin/bash\n# Notification script\n\necho \"Sending notifications...\"\n" > scripts/custom_notifications.sh
           chmod +x scripts/custom_notifications.sh
 
-          echo "Sample data for testing purposes." > data/sample_data.txt
-          echo "#!/bin/bash\n# Cleanup script\n\necho \"Performing cleanup...\"" > cleanup/cleanup.sh
+          printf "Sample data for testing purposes.\n" > data/sample_data.txt
+          printf "#!/bin/bash\n# Cleanup script\n\necho \"Performing cleanup...\"\n" > cleanup/cleanup.sh
           chmod +x cleanup/cleanup.sh
 
       - name: Configure Git
@@ -78,8 +78,10 @@ jobs:
                 "Optimized application startup"
               )
               commit_message=${commit_messages[$((RANDOM % ${#commit_messages[@]}))]}
-              
-              git commit -m "$commit_message" || echo "No changes to commit for $file_name"
+
+              if ! git commit -m "$commit_message"; then
+                echo "No changes to commit for $file_name"
+              fi
             done
           else
             echo "Target commit count for today already achieved."
@@ -88,7 +90,9 @@ jobs:
       - name: Push changes
         run: |
           set -e
-          git push || echo "No changes to push."
+          if ! git push; then
+            echo "No changes to push."
+          fi
 
       - name: Create Issues Automatically
         if: ${{ github.ref == 'refs/heads/main' }}
@@ -137,11 +141,13 @@ jobs:
                 -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
                 https://api.github.com/repos/${{ github.repository }}/pulls)
           for pr in $(echo "$prs" | jq -r '.[].number'); do
-            curl --max-time 30 -X PUT \
+            if ! curl --max-time 30 -X PUT \
               -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
               -H "Content-Type: application/json" \
               -d "{\"commit_title\":\"Auto-merge PR #$pr\",\"merge_method\":\"squash\"}" \
-              https://api.github.com/repos/${{ github.repository }}/pulls/$pr/merge
+              https://api.github.com/repos/${{ github.repository }}/pulls/$pr/merge; then
+              echo "Failed to merge PR #$pr"
+            fi
           done
 
       - name: Delete Merged Branches
@@ -149,7 +155,9 @@ jobs:
           set -x 
           branches=$(git branch -r --merged | grep -v 'main' | grep -v 'HEAD' | sed 's/origin\///')
           for branch in $branches; do
-            git push origin --delete "$branch"
+            if ! git push origin --delete "$branch"; then
+              echo "Failed to delete branch $branch"
+            fi
           done
 
       - name: Run Linter
@@ -162,7 +170,9 @@ jobs:
         run: |
           set -x 
           if [ -f "tests/test_script.sh" ]; then
-            bash tests/test_script.sh
+            if ! bash tests/test_script.sh; then
+              echo "Automated tests failed."
+            fi
           else
             echo "No test script found. Skipping tests."
           fi
@@ -171,26 +181,29 @@ jobs:
         run: |
           set -x 
           if [ -n "$SLACK_WEBHOOK_URL" ]; then
-            curl --max-time 30 -X POST \
+            if ! curl --max-time 30 -X POST \
               -H 'Content-type: application/json' \
               --data '{"text":"Auto-commit workflow completed successfully!"}' \
-              "$SLACK_WEBHOOK_URL"
+              "$SLACK_WEBHOOK_URL"; then
+              echo "Failed to send notification."
+            fi
           fi
 
       - name: Cleanup
         run: |
           set -x 
-          find . -name "file_*.txt" -delete
+          find . -name "file_*.txt" -delete || echo "No files to delete."
 
       - name: Generate Documentation and Store Logs
         run: |
           set -x 
-          echo "Generating documentation based on recent changes..."
-          echo "Documentation generated." >> logs/gitpulse.log
-          echo "Workflow completed successfully on $(date)" >> logs/gitpulse.log
+          printf "Generating documentation based on recent changes...\n" >> logs/gitpulse.log
+          printf "Documentation generated.\n" >> logs/gitpulse.log
+          printf "Workflow completed successfully on %s\n" "$(date)" >> logs/gitpulse.log
           
           log_size=$(du -k "logs/gitpulse.log" | cut -f1)
           if [ "$log_size" -gt 1024 ]; then
-            gzip logs/gitpulse.log
-            echo "Log file archived."
+            if ! gzip logs/gitpulse.log; then
+              echo "Failed to archive log file."
+            fi
           fi

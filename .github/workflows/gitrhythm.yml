@@ -1,4 +1,4 @@
-name: Gitrhythm for Github Activity
+name: Advanced Auto Commit and Repository Management
 
 on:
   schedule:
@@ -18,19 +18,19 @@ jobs:
           set -x  
           mkdir -p .github/workflows src tests config docs logs scripts data cleanup
 
-          echo "print('Example source code')" > src/example_code.py
-          echo -e "#!/bin/bash\n# Sample test script\n\necho \"Executing automated tests...\"" > tests/test_script.sh
+          printf "print('Example source code')\n" > src/example_code.py
+          printf "#!/bin/bash\n# Sample test script\n\necho \"Executing automated tests...\"\n" > tests/test_script.sh
           chmod +x tests/test_script.sh
 
-          echo -e "configuration:\n  setting: value" > config/config.yml
-          echo "# GitPulse\n\nThis repository handles automated commits and repository management." > docs/README.md
-          echo "Log file initialized for workflow tracking." > logs/gitpulse.log
+          printf "configuration:\n  setting: value\n" > config/config.yml
+          printf "# GitPulse\n\nThis repository handles automated commits and repository management.\n" > docs/README.md
+          printf "Log file initialized for workflow tracking.\n" > logs/gitpulse.log
 
-          echo -e "#!/bin/bash\n# Notification script\n\necho \"Sending notifications...\"" > scripts/custom_notifications.sh
+          printf "#!/bin/bash\n# Notification script\n\necho \"Sending notifications...\"\n" > scripts/custom_notifications.sh
           chmod +x scripts/custom_notifications.sh
 
-          echo "Sample data for testing purposes." > data/sample_data.txt
-          echo -e "#!/bin/bash\n# Cleanup script\n\necho \"Performing cleanup...\"" > cleanup/cleanup.sh
+          printf "Sample data for testing purposes.\n" > data/sample_data.txt
+          printf "#!/bin/bash\n# Cleanup script\n\necho \"Performing cleanup...\"\n" > cleanup/cleanup.sh
           chmod +x cleanup/cleanup.sh
 
       - name: Configure Git
@@ -48,9 +48,9 @@ jobs:
           extra_commits=$((target_commits - commit_count))
 
           if [ $extra_commits -gt 0 ]; then
-            for j in $(seq 1 $extra_commits); do
+            for j in $(seq 1 "$extra_commits"); do
               file_name="file_$RANDOM.txt"
-              echo "Generated content for $file_name - $(date)" > "$file_name"
+              printf "Generated content for %s - %s\n" "$file_name" "$(date)" > "$file_name"
               git add "$file_name"
 
               commit_messages=(

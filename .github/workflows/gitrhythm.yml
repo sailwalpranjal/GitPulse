@@ -47,7 +47,7 @@ jobs:
           set -e
           set -x 
           commit_count=$(git log --since="midnight" --pretty=format:"%h" | wc -l)
-          target_commits=5
+          target_commits=30
           extra_commits=$((target_commits - commit_count))
 
           if [ "$extra_commits" -gt 0 ]; then

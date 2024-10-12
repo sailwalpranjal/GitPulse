@@ -1,213 +1,201 @@
-name: Comprehensive Auto Commit, Review, and Repo Management
+name: Advanced Auto Commit and Repository Management
 
 on:
   schedule:
-    - cron: '0 * * * *'  # Runs every hour
-  workflow_dispatch:
-  pull_request:
-    types: [opened, synchronize, closed]
+    - cron: '0 * * * *'
+  workflow_dispatch: 
 
 jobs:
-  manage-repo:
+  auto-commit:
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # Step 2: Set up directory structure and essential files
       - name: Set Up Directory Structure and Files
         run: |
+          set -e
+          set -x  
           mkdir -p .github/workflows src tests config docs logs scripts data cleanup
-          touch src/example_code.py tests/test_script.sh config/config.yml docs/README.md logs/gitpulse.log scripts/custom_notifications.sh data/sample_data.txt cleanup/cleanup.sh
-          echo "#!/bin/bash\necho \"Executing automated tests...\"" > tests/test_script.sh
-          chmod +x tests/test_script.sh
-          echo "Log file initialized." > logs/gitpulse.log
-          chmod +x scripts/custom_notifications.sh cleanup/cleanup.sh
 
-      # Step 3: Configure Git user
+          printf "print('Example source code')\n" > src/example_code.py
+          printf "#!/bin/bash\n# Sample test script\n\necho \"Executing automated tests...\"\n" > tests/test_script.sh
+          chmod +x tests/test_script.sh
+
+          printf "configuration:\n  setting: value\n" > config/config.yml
+          printf "# GitPulse\n\nThis repository handles automated commits and repository management.\n" > docs/README.md
+          printf "Log file initialized for workflow tracking.\n" > logs/gitpulse.log
+
+          printf "#!/bin/bash\n# Notification script\n\necho \"Sending notifications...\"\n" > scripts/custom_notifications.sh
+          chmod +x scripts/custom_notifications.sh
+
+          printf "Sample data for testing purposes.\n" > data/sample_data.txt
+          printf "#!/bin/bash\n# Cleanup script\n\necho \"Performing cleanup...\"\n" > cleanup/cleanup.sh
+          chmod +x cleanup/cleanup.sh
+
       - name: Configure Git
         run: |
+          set -e
+          set -x 
           git config --global user.name "sailwalpranjal"
           git config --global user.email "pranjalsailwal09@gmail.com"
 
-      # Step 4: Generate random commit changes
-      - name: Generate Random Commits
+      - name: Track Commits and Generate Changes
         id: track_commits
         run: |
+          set -e
+          set -x 
           commit_count=$(git log --since="midnight" --pretty=format:"%h" | wc -l)
-          target_commits=$(( RANDOM % 176 + 25 ))  # Random commits between 25 and 200
+          target_commits=30
           extra_commits=$((target_commits - commit_count))
+
           if [ "$extra_commits" -gt 0 ]; then
-            for i in $(seq 1 "$extra_commits"); do
+            for j in $(seq 1 "$extra_commits"); do
               file_name="file_$RANDOM.txt"
-              echo "Generated content for $file_name - $(date)" > "$file_name"
+              printf "Generated content for %s - %s\n" "$file_name" "$(date)" > "$file_name"
               git add "$file_name"
+
               commit_messages=(
-                "Refactored code" "Fixed bugs" "Updated docs" "Optimized code" "Enhanced performance"
-                "Security improvements" "Improved error handling" "Added new features" "Cleaned up codebase" 
-                "Enhanced user experience" "Refined database queries" "Updated dependencies" "Improved test coverage"
-                "Simplified configuration" "Implemented new algorithms" "Updated API documentation" 
-                "Adjusted project structure" "Improved logging" "Added more unit tests" "Refined UI design"
-                "Updated README with examples" "Improved input validation" "Optimized memory usage" 
-                "Resolved merge conflicts" "Updated CI/CD configurations" "Improved code readability" 
-                "Fixed performance issues" "Added caching" "Refactored modules" "Improved code efficiency"
-                "Cleaned up temporary files" "Fixed typo in comments" "Updated external libraries" 
-                "Improved accessibility" "Refactored authentication logic" "Enhanced data validation"
-                "Reduced code duplication" "Updated error messages" "Improved search functionality" 
-                "Added comments for clarity" "Improved deployment scripts" "Refined output formatting"
-                "Updated versioning scheme" "Improved build process" "Enhanced internationalization support"
+                "Refactored code for enhanced performance"
+                "Fixed minor bugs and issues"
+                "Updated project documentation"
+                "Optimized code for better efficiency"
+                "Adjusted configuration settings"
+                "Implemented new feature"
+                "Enhanced UI elements"
+                "Fixed security vulnerabilities"
+                "Improved error handling"
+                "Updated dependency versions"
+                "Cleaned up deprecated code"
+                "Refactored code structure"
+                "Improved performance metrics"
+                "Added new unit tests"
+                "Updated README for clarity"
+                "Adjusted project settings"
+                "Enhanced logging capabilities"
+                "Fixed intermittent issues"
+                "Improved database interactions"
+                "Optimized application startup"
               )
-              commit_message=$(shuf -e "${commit_messages[@]}" -n 1)
+              commit_message=${commit_messages[$RANDOM % ${#commit_messages[@]}]}
               git commit -m "$commit_message"
             done
           else
-            echo "Target commit count achieved for today."
+            echo "Target commit count for today already achieved."
           fi
 
-
-      # Step 5: Push changes to the repository
-      - name: Push Changes
+      - name: Push changes
         run: git push
 
-      # Step 6: Run code linting
-      - name: Code Linting
-        uses: github/super-linter@v4
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # Step 7: Run security check
-      - name: Security Check
-        run: |
-          echo "Running security audit..."
-          npm audit
-
-      # Step 8: Notify on issue creation
-      - name: Notify on Issue Creation
-        run: |
-          curl -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-          -H "Content-Type: application/json" \
-          -d "{\"body\":\"An issue has been created. Please review.\"}" \
-          https://api.github.com/repos/${{ github.repository }}/issues
-
-      # Step 9: Automatically comment on issues
-      - name: Auto-Comment on Issues
-        run: |
-          curl -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-          -H "Content-Type: application/json" \
-          -d "{\"body\":\"Automated comment: Thank you for raising this issue!\"}" \
-          https://api.github.com/repos/${{ github.repository }}/issues
-
-      # Step 10: Run tests and generate reports
-      - name: Run Tests
-        run: ./tests/test_script.sh
-
-      - name: Generate Test Coverage Report
-        run: |
-          coverage run -m unittest discover
-          coverage report -m
-
-      # Step 11: Auto-assign and label issues
-      - name: Auto-Assign and Label Issues
-        run: |
-          issue_titles=("Enhance modularity" "Fix crashing issue" "Improve test coverage")
-          for issue_title in "${issue_titles[@]}"; do
-            curl -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -d "{\"title\":\"$issue_title\",\"body\":\"Generated issue.\",\"labels\":[\"bug\"],\"assignees\":[\"sailwalpranjal\"]}" \
-            https://api.github.com/repos/${{ github.repository }}/issues
-          done
-
-      # Step 12: Create release based on significant changes
-      - name: Create Automated Release
+      - name: Create Issues Automatically
         if: ${{ github.ref == 'refs/heads/main' }}
         run: |
-          latest_commit=$(git log -1 --pretty=%B)
-          if [[ "$latest_commit" =~ "feature" || "$latest_commit" =~ "breaking change" ]]; then
-            curl -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          set -e
+          set -x 
+          issue_titles=(
+            "Investigate performance issue"
+            "Enhance code readability"
+            "Refactor main module"
+            "Fix intermittent bug"
+            "Improve testing coverage"
+            "Add new feature documentation"
+            "Update API endpoints"
+            "Resolve compatibility issues"
+            "Investigate memory leak"
+            "Enhance security features"
+          )
+          issue_title=${issue_titles[$RANDOM % ${#issue_titles[@]}]}
+          
+          curl --max-time 30 -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             -H "Content-Type: application/json" \
-            -d "{\"tag_name\":\"v$(date +'%Y%m%d%H%M%S')\",\"target_commitish\":\"main\",\"name\":\"Auto Release\",\"body\":\"Auto release generated for recent feature or breaking change.\",\"draft\":false,\"prerelease\":false}" \
-            https://api.github.com/repos/${{ github.repository }}/releases
-          fi
+            -d "{\"title\":\"$issue_title\",\"body\":\"Automatically generated issue\",\"labels\":[\"auto\"]}" \
+            https://api.github.com/repos/${{ github.repository }}/issues
 
-      # Step 13: Send Slack notification on success
-      - name: Send Slack Notification
-        if: success()
-        env:
-          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+      - name: Create Pull Request
+        if: ${{ github.ref == 'refs/heads/main' }}
         run: |
-          curl -X POST -H 'Content-type: application/json' \
-          --data '{"text":"New commits and changes have been pushed successfully!"}' ${{ secrets.SLACK_WEBHOOK }}
+          set -e
+          set -x 
+          branch_name="auto-pr-branch-$RANDOM"
+          git checkout -b "$branch_name"
+          git push origin "$branch_name"
+          
+          curl --max-time 30 -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"title\":\"Auto PR - $branch_name\",\"head\":\"$branch_name\",\"base\":\"main\",\"body\":\"This is an automatically generated pull request.\"}" \
+            https://api.github.com/repos/${{ github.repository }}/pulls
 
-      # Step 14: Email notification on failure
-      - name: Send Email Notification on Failure
-        if: failure()
+      - name: Merge Pull Requests
+        if: ${{ github.ref == 'refs/heads/main' }}
         run: |
-          echo "The workflow has failed. Please check your repository." | mail -s "GitHub Action Failure" your-email@example.com
+          set -e
+          set -x 
+          prs=$(curl --max-time 30 \
+                -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                https://api.github.com/repos/${{ github.repository }}/pulls)
+          for pr in $(echo "$prs" | jq -r '.[].number'); do
+            curl --max-time 30 -X PUT \
+              -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Content-Type: application/json" \
+              -d "{\"commit_title\":\"Auto-merge PR #$pr\",\"merge_method\":\"squash\"}" \
+              https://api.github.com/repos/${{ github.repository }}/pulls/$pr/merge
+          done
 
-      # Step 15: Check PR size and reject if too large
-      - name: Check Pull Request Size
-        if: ${{ github.event.pull_request.size > 500 }}
+      - name: Delete Merged Branches
         run: |
-          echo "The PR is too large! Please break it into smaller chunks." | mail -s "Large PR Detected" your-email@example.com
-
-      # Step 16: Delete stale branches
-      - name: Delete Stale Branches
-        run: |
-          branches=$(git branch -r --merged | grep -v 'main' | grep -v '\*' | awk '{print $1}')
+          set -e
+          set -x 
+          branches=$(git branch -r --merged | grep -v 'main' | grep -v 'HEAD' | sed 's/origin\///')
           for branch in $branches; do
             git push origin --delete "$branch"
           done
 
-      # Step 17: Verify commit signatures
-      - name: Verify Commit Signatures
-        run: |
-          git log --pretty='%h %G?' | grep -v 'G' && echo "Unsigned commits detected!" && exit 1 || echo "All commits are signed."
+      - name: Run Linter
+        uses: github/super-linter@v4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEFAULT_BRANCH: main
 
-      # Step 18: Tagging for version control
-      - name: Generate Semantic Version Tag
+      - name: Automated Code Testing
         run: |
-          latest_tag=$(git describe --tags `git rev-list --tags --max-count=1`)
-          if [[ -n "$latest_tag" ]]; then
-            new_tag=$(echo $latest_tag | awk -F. -v OFS=. '{$NF++;print}')
+          set -e
+          set -x 
+          if [ -f "tests/test_script.sh" ]; then
+            bash tests/test_script.sh
           else
-            new_tag="v0.1.0"
+            echo "No test script found. Skipping tests."
           fi
-          git tag $new_tag
-          git push origin $new_tag
 
-      # Step 19: Generate build report
-      - name: Generate Build Report
+      - name: Custom Notifications
         run: |
-          echo "Build successful at $(date)" >> build_report.md
-          git add build_report.md
-          git commit -m "Updated build report"
-          git push
+          set -e
+          set -x 
+          if [ -n "$SLACK_WEBHOOK_URL" ]; then
+            curl --max-time 30 -X POST \
+              -H 'Content-type: application/json' \
+              --data '{"text":"Auto-commit workflow completed successfully!"}' \
+              "$SLACK_WEBHOOK_URL"
+          fi
 
-      # Step 20: Cleanup temporary files
-      - name: Cleanup Temporary Files
-        run: ./cleanup/cleanup.sh
-
-      # Step 21: Auto-close issues with specific labels
-      - name: Auto-Close Issues
+      - name: Cleanup
         run: |
-          issues=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            https://api.github.com/repos/${{ github.repository }}/issues \
-            | jq -r '.[] | select(.labels[].name == "resolved") | .number')
+          set -e
+          set -x 
+          find . -name "file_*.txt" -delete
 
-          for issue in $issues; do
-            curl -X PATCH -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -d '{"state": "closed"}' \
-            https://api.github.com/repos/${{ github.repository }}/issues/$issue
-          done
-
-      # Step 22: Auto-close pull requests if too large or tests fail
-      - name: Auto-Close Pull Requests
-        if: ${{ github.event.pull_request.size > 1000 || failure() }}
+      - name: Generate Documentation and Store Logs
         run: |
-          curl -X PATCH -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-          -H "Content-Type: application/json" \
-          -d '{"state": "closed"}' \
-          https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}
+          set -e
+          set -x 
+          echo "Generating documentation based on recent changes..."
+          echo "Documentation generated." >> logs/gitpulse.log
+          echo "Workflow completed successfully on $(date)" >> logs/gitpulse.log
+          
+          log_size=$(du -k "logs/gitpulse.log" | cut -f1)
+          if [ "$log_size" -gt 1024 ]; then
+            gzip logs/gitpulse.log
+            echo "Log file archived."
+          fi

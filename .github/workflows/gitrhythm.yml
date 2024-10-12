@@ -47,7 +47,7 @@ jobs:
           set -e
           set -x 
           commit_count=$(git log --since="midnight" --pretty=format:"%h" | wc -l)
-          target_commits=30
+          target_commits=5
           extra_commits=$((target_commits - commit_count))
 
           if [ "$extra_commits" -gt 0 ]; then
@@ -107,7 +107,7 @@ jobs:
           )
           issue_title=${issue_titles[$RANDOM % ${#issue_titles[@]}]}
           
-          curl --max-time 30 -X POST \
+          curl --max-time 5 -X POST \
             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             -H "Content-Type: application/json" \
             -d "{\"title\":\"$issue_title\",\"body\":\"Automatically generated issue\",\"labels\":[\"auto\"]}" \
@@ -122,7 +122,7 @@ jobs:
           git checkout -b "$branch_name"
           git push origin "$branch_name"
           
-          curl --max-time 30 -X POST \
+          curl --max-time 5 -X POST \
             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             -H "Content-Type: application/json" \
             -d "{\"title\":\"Auto PR - $branch_name\",\"head\":\"$branch_name\",\"base\":\"main\",\"body\":\"This is an automatically generated pull request.\"}" \
@@ -133,11 +133,11 @@ jobs:
         run: |
           set -e
           set -x 
-          prs=$(curl --max-time 30 \
+          prs=$(curl --max-time 5 \
                 -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
                 https://api.github.com/repos/${{ github.repository }}/pulls)
           for pr in $(echo "$prs" | jq -r '.[].number'); do
-            curl --max-time 30 -X PUT \
+            curl --max-time 5 -X PUT \
               -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
               -H "Content-Type: application/json" \
               -d "{\"commit_title\":\"Auto-merge PR #$pr\",\"merge_method\":\"squash\"}" \
@@ -174,7 +174,7 @@ jobs:
           set -e
           set -x 
           if [ -n "$SLACK_WEBHOOK_URL" ]; then
-            curl --max-time 30 -X POST \
+            curl --max-time 5 -X POST \
               -H 'Content-type: application/json' \
               --data '{"text":"Auto-commit workflow completed successfully!"}' \
               "$SLACK_WEBHOOK_URL"

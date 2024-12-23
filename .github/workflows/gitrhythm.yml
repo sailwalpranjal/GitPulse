@@ -1,12 +1,12 @@
-name: Advanced Repository Management and Automation
+name: Ultimate Repository Automation Workflow
 
 on:
   schedule:
-    - cron: '0 0 * * *'
+    - cron: '0 * * * *' # Runs hourly
   workflow_dispatch:
 
 jobs:
-  repository-management:
+  repository-automation:
     runs-on: ubuntu-latest
 
     steps:
@@ -15,57 +15,51 @@ jobs:
 
       - name: Setup Directory Structure and Files
         run: |
+          set -e
+          set -x
           mkdir -p .github/workflows src tests config docs logs scripts data cleanup
-          echo "print('Example source code')" > src/example_code.py
-          echo -e "#!/bin/bash\necho \"Executing automated tests...\"" > tests/test_script.sh
+
+          printf "print('Example source code')\n" > src/example_code.py
+          printf "#!/bin/bash\n# Test script\n\necho 'Executing automated tests...'\n" > tests/test_script.sh
           chmod +x tests/test_script.sh
-          echo "configuration:\n  setting: value" > config/config.yml
-          echo "# Repository Management Documentation\n" > docs/README.md
-          echo "Log initialized for tracking workflows." > logs/workflow.log
-          echo -e "#!/bin/bash\necho \"Sending notifications...\"" > scripts/notifications.sh
+
+          printf "configuration:\n  setting: value\n" > config/config.yml
+          printf "# Repository Documentation\n\nAutomated workflow for repository management.\n" > docs/README.md
+          printf "Log initialized.\n" > logs/workflow.log
+
+          printf "#!/bin/bash\n# Notifications\n\necho 'Sending notifications...'\n" > scripts/notifications.sh
           chmod +x scripts/notifications.sh
-          echo "Sample data for testing." > data/sample_data.txt
-          echo -e "#!/bin/bash\necho \"Performing cleanup...\"" > cleanup/cleanup.sh
+
+          printf "Sample data for testing.\n" > data/sample_data.txt
+          printf "#!/bin/bash\n# Cleanup script\n\necho 'Performing cleanup...'\n" > cleanup/cleanup.sh
           chmod +x cleanup/cleanup.sh
 
       - name: Configure Git
         run: |
+          set -e
+          set -x
           git config --global user.name "sailwalpranjal"
           git config --global user.email "pranjalsailwal09@gmail.com"
 
-      - name: Randomized Commit Messages
-        id: commit_messages
+      - name: Randomized Commit Generation
         run: |
-          commit_count=$(shuf -i 25-45 -n 1)
+          set -e
+          set -x
+          commit_count=$(shuf -i 10-20 -n 1) # Randomize commit count
           for i in $(seq 1 $commit_count); do
-            file_name="file_$RANDOM.txt"
-            echo "Auto-generated content for $file_name at $(date)" > "$file_name"
+            file_name="auto_file_$RANDOM.txt"
+            printf "Auto-generated content for %s at %s\n" "$file_name" "$(date)" > "$file_name"
             git add "$file_name"
 
             commit_messages=(
               "Refactored core modules for better performance"
-              "Improved documentation for clarity"
-              "Fixed intermittent bugs in feature module"
-              "Enhanced error handling across scripts"
-              "Optimized runtime performance"
-              "Updated dependency versions for security patches"
+              "Improved documentation and readability"
+              "Fixed minor bugs in feature modules"
+              "Enhanced error handling capabilities"
+              "Optimized runtime performance metrics"
+              "Updated dependencies for security patches"
               "Improved test coverage and reliability"
-              "Redesigned project structure for scalability"
-              "Refactored legacy code for maintainability"
-              "Enhanced logging and monitoring capabilities"
-              "Fixed syntax issues in configuration files"
-              "Optimized database query performance"
-              "Streamlined setup scripts for easier deployment"
-              "Updated API documentation and examples"
-              "Enhanced CLI usability and feedback"
-              "Added new utility scripts for developers"
-              "Improved configuration file validations"
-              "Optimized memory usage in key modules"
-              "Refactored UI logic for responsiveness"
-              "Fixed edge case handling in workflows"
-              "Streamlined CI/CD pipeline for faster delivery"
-              "Enhanced notifications for actionable insights"
-              "Resolved compatibility issues across environments"
+              "Streamlined project structure for scalability"
             )
             commit_message=${commit_messages[$RANDOM % ${#commit_messages[@]}]}
             git commit -m "$commit_message"
@@ -78,42 +72,42 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -e
+          set -x
           issue_titles=(
             "Investigate slow build times"
             "Improve automated testing reliability"
             "Enhance logging for better debugging"
             "Refactor legacy components for clarity"
-            "Address security vulnerabilities in dependencies"
-            "Optimize CI/CD pipeline"
-            "Add comprehensive API documentation"
-            "Resolve compatibility issues with new updates"
-            "Investigate memory usage spikes"
-            "Improve error messaging for end-users"
           )
           issue_title=${issue_titles[$RANDOM % ${#issue_titles[@]}]}
           curl -X POST \
             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             -H "Content-Type: application/json" \
-            -d "{\"title\":\"$issue_title\",\"body\":\"This issue was automatically generated as part of repository management.\",\"labels\":[\"auto-generated\"]}" \
+            -d "{\"title\":\"$issue_title\",\"body\":\"This issue was auto-generated as part of repository management.\",\"labels\":[\"auto-generated\"]}" \
             https://api.github.com/repos/${{ github.repository }}/issues
 
-      - name: Create and Manage Pull Requests
+      - name: Create Pull Requests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -e
+          set -x
           branch_name="auto-pr-branch-$(date +%s)"
           git checkout -b "$branch_name"
           git push origin "$branch_name"
           curl -X POST \
             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             -H "Content-Type: application/json" \
-            -d "{\"title\":\"Auto-Generated Pull Request\",\"head\":\"$branch_name\",\"base\":\"main\",\"body\":\"This pull request was automatically created as part of the workflow.\"}" \
+            -d "{\"title\":\"Auto-Generated Pull Request\",\"head\":\"$branch_name\",\"base\":\"main\",\"body\":\"This pull request was automatically created by the workflow.\"}" \
             https://api.github.com/repos/${{ github.repository }}/pulls
 
       - name: Merge Pull Requests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -e
+          set -x
           prs=$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             https://api.github.com/repos/${{ github.repository }}/pulls | jq -r '.[].number')
           for pr in $prs; do
@@ -126,6 +120,8 @@ jobs:
 
       - name: Delete Merged Branches
         run: |
+          set -e
+          set -x
           branches=$(git branch -r --merged | grep -v 'main' | grep -v 'HEAD' | sed 's/origin\///')
           for branch in $branches; do
             git push origin --delete "$branch"
@@ -138,6 +134,8 @@ jobs:
 
       - name: Automated Testing
         run: |
+          set -e
+          set -x
           if [ -f "tests/test_script.sh" ]; then
             bash tests/test_script.sh
           else
@@ -146,20 +144,26 @@ jobs:
 
       - name: Notifications
         run: |
+          set -e
+          set -x
           if [ -n "$SLACK_WEBHOOK_URL" ]; then
             curl -X POST \
-              -H "Content-Type: application/json" \
+              -H 'Content-type: application/json' \
               --data '{"text":"Workflow completed successfully!"}' \
               "$SLACK_WEBHOOK_URL"
           fi
 
       - name: Cleanup Temporary Files
-        run: find . -name "file_*.txt" -delete
+        run: find . -name "auto_file_*.txt" -delete
 
-      - name: Generate Documentation and Archive Logs
+      - name: Archive Logs and Generate Documentation
         run: |
+          set -e
+          set -x
           echo "Generating documentation..." >> logs/workflow.log
           echo "Workflow completed successfully on $(date)." >> logs/workflow.log
-          if [ $(du -k logs/workflow.log | cut -f1) -gt 1024 ]; then
+          log_size=$(du -k logs/workflow.log | cut -f1)
+          if [ "$log_size" -gt 1024 ]; then
             gzip logs/workflow.log
+            echo "Log archived."
           fi

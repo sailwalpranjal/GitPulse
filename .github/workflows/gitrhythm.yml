@@ -103,30 +103,30 @@ jobs:
     steps:
       - id: set-matrix
         run: |
-          # Define work matrix
-          MATRIX=$(cat << EOF
-          {
-            "include": [
+          # Define work matrix as JSON
+          MATRIX=$(jq -n '{
+            include: [
               {
-                "category": "security",
-                "tools": ["bandit", "safety", "snyk"],
-                "priority": "high"
+                category: "security",
+                tools: ["bandit", "safety", "snyk"],
+                priority: "high"
               },
               {
-                "category": "performance",
-                "tools": ["pytest-benchmark", "memory-profiler"],
-                "priority": "medium"
+                category: "performance",
+                tools: ["pytest-benchmark", "memory-profiler"],
+                priority: "medium"
               },
               {
-                "category": "quality",
-                "tools": ["pylint", "black", "isort"],
-                "priority": "low"
+                category: "quality",
+                tools: ["pylint", "black", "isort"],
+                priority: "low"
               }
             ]
-          }
-          EOF
-          )
+          }')
+  
+          # Output the matrix to GitHub Actions
           echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+
 
       - name: Setup Base Environment
         run: |

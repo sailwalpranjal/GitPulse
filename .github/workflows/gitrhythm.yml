@@ -1,169 +1,596 @@
-name: Ultimate Repository Automation Workflow
+name: Ultimate Repository Automation Suite
 
 on:
   schedule:
-    - cron: '0 * * * *' # Runs hourly
+    - cron: '0 * * * *'
   workflow_dispatch:
+    inputs:
+      force_run:
+        description: 'Force workflow execution'
+        required: false
+        type: boolean
+        default: false
+      priority_level:
+        description: 'Set priority level'
+        required: false
+        type: choice
+        options:
+          - CRITICAL
+          - HIGH
+          - MEDIUM
+          - LOW
+        default: 'MEDIUM'
 
+env:
+  # Configuration
+  MAX_DAILY_RUNS: 30
+  MIN_DAILY_RUNS: 1
+  MIN_COMMITS: 15
+  MAX_COMMITS: 20
+  RETENTION_DAYS: 14
+  
+  # Thresholds
+  HIGH_PRIORITY_THRESHOLD: 'CRITICAL'
+  COMPLEXITY_THRESHOLD: 10
+  MAINTAINABILITY_THRESHOLD: 65
+  
+  # Versions
+  NODE_VERSION: '18'
+  PYTHON_VERSION: '3.10'
+  
+  # Other settings
+  TZ: 'UTC'
+
+# Add at the top level
+defaults:
+  run:
+    shell: bash
+    
+# Add timeouts to prevent hung jobs
 jobs:
-  repository-automation:
+  validate-workflow:
     runs-on: ubuntu-latest
-
+    timeout-minutes: 10  # Add timeout here, inside the job definition
+    outputs:
+      should_run: ${{ steps.validation.outputs.should_run }}
+      run_id: ${{ steps.validation.outputs.run_id }}
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v3
-
-      - name: Setup Directory Structure and Files
+      - id: validation
         run: |
-          set -e
-          set -x
-          mkdir -p .github/workflows src tests config docs logs scripts data cleanup
+          # Generate unique run ID
+          RUN_ID=$(date +%s%N | md5sum | head -c 16)
+          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+          
+          # Check if workflow should run based on time and previous runs
+          DATE=$(date +%Y%m%d)
+          HOUR=$(date +%H)
+          
+          # Use date as seed for consistent daily randomization
+          SEED=$(($(date +%s -d "$DATE") / 86400))
+          RANDOM=$SEED
+          
+          # Calculate target runs for today
+          TARGET_RUNS=$((RANDOM % ($MAX_DAILY_RUNS - $MIN_DAILY_RUNS + 1) + $MIN_DAILY_RUNS))
+          
+          # Calculate probability for this hour
+          REMAINING_HOURS=$((23 - HOUR))
+          PROBABILITY=$((100 / (REMAINING_HOURS + 1)))
+          
+          # Determine if we should run
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.force_run }}" = "true" ]; then
+            SHOULD_RUN=true
+          elif [ $((RANDOM % 100)) -lt $PROBABILITY ]; then
+            SHOULD_RUN=true
+          else
+            SHOULD_RUN=false
+          fi
+          
+          echo "should_run=$SHOULD_RUN" >> $GITHUB_OUTPUT
+          
+          # Log decision
+          echo "Date: $DATE"
+          echo "Hour: $HOUR"
+          echo "Target runs: $TARGET_RUNS"
+          echo "Probability: $PROBABILITY%"
+          echo "Decision: $SHOULD_RUN"
+          
+  initialize-environment:
+    needs: validate-workflow
+    if: needs.validate-workflow.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - id: set-matrix
+        run: |
+          # Define work matrix
+          MATRIX=$(cat << EOF
+          {
+            "include": [
+              {
+                "category": "security",
+                "tools": ["bandit", "safety", "snyk"],
+                "priority": "high"
+              },
+              {
+                "category": "performance",
+                "tools": ["pytest-benchmark", "memory-profiler"],
+                "priority": "medium"
+              },
+              {
+                "category": "quality",
+                "tools": ["pylint", "black", "isort"],
+                "priority": "low"
+              }
+            ]
+          }
+          EOF
+          )
+          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
 
-          printf "print('Example source code')\n" > src/example_code.py
-          printf "#!/bin/bash\n# Test script\n\necho 'Executing automated tests...'\n" > tests/test_script.sh
-          chmod +x tests/test_script.sh
+      - name: Setup Base Environment
+        run: |
+          # Create essential directories
+          mkdir -p \
+            .github/{workflows,templates,actions,scripts} \
+            src/{core,api,services,utils,models,interfaces,helpers} \
+            tests/{unit,integration,e2e,performance,security,stress} \
+            config/{env,secrets,deployment,monitoring} \
+            docs/{api,architecture,deployment,maintenance,security} \
+            scripts/{ci,deployment,monitoring,backup,migration} \
+            tools/{development,analysis,migration,security} \
+            assets/{images,styles,fonts,icons} \
+            data/{raw,processed,backup,temp} \
+            logs/{app,system,security,performance}
 
-          printf "configuration:\n  setting: value\n" > config/config.yml
-          printf "# Repository Documentation\n\nAutomated workflow for repository management.\n" > docs/README.md
-          printf "Log initialized.\n" > logs/workflow.log
+  setup-dependencies:
+    needs: initialize-environment
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          
+      - name: Install Dependencies
+        run: |
+          # Python packages
+          python -m pip install --upgrade pip
+          pip install \
+            pytest pytest-cov pytest-benchmark \
+            black isort pylint bandit safety \
+            memory-profiler radon xenon \
+            requests pyyaml
+            
+          # Node.js packages
+          npm install -g \
+            snyk prettier eslint \
+            typescript jest
 
-          printf "#!/bin/bash\n# Notifications\n\necho 'Sending notifications...'\n" > scripts/notifications.sh
-          chmod +x scripts/notifications.sh
-
-          printf "Sample data for testing.\n" > data/sample_data.txt
-          printf "#!/bin/bash\n# Cleanup script\n\necho 'Performing cleanup...'\n" > cleanup/cleanup.sh
-          chmod +x cleanup/cleanup.sh
-
+  generate-content:
+    needs: setup-dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
       - name: Configure Git
         run: |
-          set -e
-          set -x
-          git config --global user.name "sailwalpranjal"
-          git config --global user.email "pranjalsailwal09@gmail.com"
-
-      - name: Randomized Commit Generation
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          
+      - name: Generate Project Structure
         run: |
-          set -e
-          set -x
-          commit_count=$(shuf -i 10-20 -n 1) # Randomize commit count
-          for i in $(seq 1 $commit_count); do
-            file_name="auto_file_$RANDOM.txt"
-            printf "Auto-generated content for %s at %s\n" "$file_name" "$(date)" > "$file_name"
-            git add "$file_name"
+          # Create core files
+          echo "Creating core module files..."
+          
+          # Core initialization
+          cat > src/core/__init__.py << EOL
+          """Core module initialization."""
+          from typing import Dict, Any
+          
+          __version__ = "1.0.0"
+          
+          def get_version() -> str:
+              """Return the current version."""
+              return __version__
+          EOL
+          
+          # Configuration manager
+          cat > src/core/config.py << EOL
+          """Configuration management module."""
+          import os
+          import yaml
+          from typing import Dict, Any, Optional
+          
+          class ConfigManager:
+              """Manage application configuration."""
+              
+              def __init__(self, config_path: Optional[str] = None):
+                  self.config_path = config_path or "config/default.yml"
+                  self._config: Dict[str, Any] = {}
+                  
+              def load(self) -> Dict[str, Any]:
+                  """Load configuration from file."""
+                  if os.path.exists(self.config_path):
+                      with open(self.config_path, 'r') as f:
+                          self._config = yaml.safe_load(f)
+                  return self._config
+                  
+              def get(self, key: str, default: Any = None) -> Any:
+                  """Get configuration value."""
+                  return self._config.get(key, default)
+          EOL
+          
+          # Create test files
+          echo "Creating test files..."
+          
+          # Configuration tests
+          cat > tests/unit/test_config.py << EOL
+          """Test configuration management."""
+          import pytest
+          from src.core.config import ConfigManager
+          
+          def test_config_manager():
+              """Test ConfigManager functionality."""
+              config = ConfigManager()
+              assert isinstance(config.load(), dict)
+              assert config.get('non_existent', 'default') == 'default'
+          EOL
+          
+          # Create documentation
+          echo "Creating documentation..."
+          
+          cat > docs/README.md << EOL
+          # Project Documentation
+          
+          ## Overview
+          This project is managed by the Ultimate Repository Automation Suite.
+          
+          ## Structure
+          - \`src/\`: Source code
+          - \`tests/\`: Test suites
+          - \`config/\`: Configuration files
+          - \`docs/\`: Documentation
+          - \`scripts/\`: Utility scripts
+          EOL
 
-            commit_messages=(
-              "Refactored core modules for better performance"
-              "Improved documentation and readability"
-              "Fixed minor bugs in feature modules"
-              "Enhanced error handling capabilities"
-              "Optimized runtime performance metrics"
-              "Updated dependencies for security patches"
-              "Improved test coverage and reliability"
-              "Streamlined project structure for scalability"
-            )
-            commit_message=${commit_messages[$RANDOM % ${#commit_messages[@]}]}
-            git commit -m "$commit_message"
-          done
-
-      - name: Push Changes
-        run: git push
-
-      - name: Automatically Create Issues
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Generate Changes
         run: |
-          set -e
-          set -x
-          issue_titles=(
-            "Investigate slow build times"
-            "Improve automated testing reliability"
-            "Enhance logging for better debugging"
-            "Refactor legacy components for clarity"
+          # Define types of changes
+          declare -A CHANGE_TYPES=(
+            ["feature"]="New feature implementation"
+            ["bugfix"]="Bug fix implementation"
+            ["security"]="Security enhancement"
+            ["performance"]="Performance optimization"
+            ["refactor"]="Code refactoring"
+            ["test"]="Test implementation"
+            ["docs"]="Documentation update"
           )
-          issue_title=${issue_titles[$RANDOM % ${#issue_titles[@]}]}
+          
+          # Generate random number of changes
+          CHANGES_COUNT=$((RANDOM % ($MAX_COMMITS - $MIN_COMMITS + 1) + $MIN_COMMITS))
+          
+          for i in $(seq 1 $CHANGES_COUNT); do
+            # Select random change type
+            TYPES=("${!CHANGE_TYPES[@]}")
+            TYPE=${TYPES[$RANDOM % ${#TYPES[@]}]}
+            
+            # Generate file content
+            FILE_PATH="src/changes/change_${i}.py"
+            mkdir -p "src/changes"
+            
+            # Create change content
+            cat > "$FILE_PATH" << EOL
+          """${CHANGE_TYPES[$TYPE]} implementation."""
+          from typing import Any
+          
+          def implement_${TYPE}_${i}() -> Any:
+              """Implement ${TYPE} changes."""
+              return "${CHANGE_TYPES[$TYPE]}"
+          EOL
+            
+            # Create corresponding test
+            TEST_PATH="tests/unit/test_change_${i}.py"
+            cat > "$TEST_PATH" << EOL
+          """Test ${TYPE} implementation."""
+          from src.changes.change_${i} import implement_${TYPE}_${i}
+          
+          def test_implementation():
+              """Test the implementation."""
+              result = implement_${TYPE}_${i}()
+              assert isinstance(result, str)
+              assert result == "${CHANGE_TYPES[$TYPE]}"
+          EOL
+            
+            # Add changes
+            git add "$FILE_PATH" "$TEST_PATH"
+            
+            # Create commit
+            git commit -m "[$TYPE] Implement change $i - ${CHANGE_TYPES[$TYPE]}"
+          done
+
+  analyze-code:
+    needs: generate-content
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        category: [security, quality, performance]
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Run Analysis
+        id: analysis
+        run: |
+          case ${{ matrix.category }} in
+            "security")
+              # Security analysis
+              bandit -r src/ -f json -o security-report.json
+              safety check --json > dependency-security.json
+              ;;
+              
+            "quality")
+              # Code quality analysis
+              pylint src/ --output-format=json > pylint-report.json
+              black --check src/
+              isort --check-only src/
+              ;;
+              
+            "performance")
+              # Performance analysis
+              python -m memory_profiler src/**/*.py > performance-report.txt
+              ;;
+          esac
+
+      - name: Process Results
+        run: |
+          python3 << EOL
+          import json
+          import os
+          from typing import List, Dict, Any
+          
+          def process_results(category: str) -> List[Dict[str, Any]]:
+              issues = []
+              
+              if category == 'security':
+                  # Process security reports
+                  if os.path.exists('security-report.json'):
+                      with open('security-report.json') as f:
+                          data = json.load(f)
+                          for issue in data.get('results', []):
+                              if issue['issue_severity'] == 'HIGH':
+                                  issues.append({
+                                      'type': 'security',
+                                      'severity': 'high',
+                                      'message': issue['issue_text']
+                                  })
+                                  
+              elif category == 'quality':
+                  # Process quality reports
+                  if os.path.exists('pylint-report.json'):
+                      with open('pylint-report.json') as f:
+                          data = json.load(f)
+                          for issue in data:
+                              if issue['type'] in ['error', 'warning']:
+                                  issues.append({
+                                      'type': 'quality',
+                                      'severity': 'medium',
+                                      'message': issue['message']
+                                  })
+                                  
+              return issues
+              
+          results = process_results('${{ matrix.category }}')
+          with open('analysis-results.json', 'w') as f:
+              json.dump(results, f)
+          EOL
+
+      - name: Upload Results
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.category }}-analysis
+          path: |
+            *-report.json
+            *-report.txt
+            analysis-results.json
+          retention-days: ${{ env.RETENTION_DAYS }}
+
+  create-pull-request:
+    needs: analyze-code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Download Analysis Results
+        uses: actions/download-artifact@v3
+        with:
+          path: ./analysis
+          
+      - name: Process All Results
+        run: |
+          python3 << EOL
+          import json
+          import os
+          from typing import List, Dict, Any
+          
+          def collect_all_results() -> List[Dict[str, Any]]:
+              all_results = []
+              
+              for root, _, files in os.walk('./analysis'):
+                  for file in files:
+                      if file.endswith('results.json'):
+                          with open(os.path.join(root, file)) as f:
+                              results = json.load(f)
+                              all_results.extend(results)
+                              
+              return all_results
+              
+          results = collect_all_results()
+          
+          # Generate PR body
+          pr_body = "## Automated Changes Summary\n\n"
+          
+          if results:
+              pr_body += "### Issues Found\n\n"
+              for result in results:
+                  pr_body += f"- [{result['severity'].upper()}] {result['message']}\n"
+          else:
+              pr_body += "No issues found in analysis.\n"
+              
+          with open('pr_body.txt', 'w') as f:
+              f.write(pr_body)
+          EOL
+          
+      - name: Create Pull Request
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Create new branch
+          BRANCH_NAME="automated-update-$(date +%s)"
+          git checkout -b $BRANCH_NAME
+          
+          # Push changes
+          git push origin $BRANCH_NAME
+          
+          # Create PR
+          PR_BODY=$(cat pr_body.txt)
           curl -X POST \
             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             -H "Content-Type: application/json" \
-            -d "{\"title\":\"$issue_title\",\"body\":\"This issue was auto-generated as part of repository management.\",\"labels\":[\"auto-generated\"]}" \
-            https://api.github.com/repos/${{ github.repository }}/issues
+            https://api.github.com/repos/${{ github.repository }}/pulls \
+            -d "{
+              \"title\": \"Automated Updates $(date +%Y-%m-%d)\",
+              \"body\": \"$PR_BODY\",
+              \"head\": \"$BRANCH_NAME\",
+              \"base\": \"main\"
+            }"
 
-      - name: Create Pull Requests
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  notify:
+    needs: create-pull-request
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Process Notifications
         run: |
-          set -e
-          set -x
-          branch_name="auto-pr-branch-$(date +%s)"
-          git checkout -b "$branch_name"
-          git push origin "$branch_name"
-          curl -X POST \
-            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -d "{\"title\":\"Auto-Generated Pull Request\",\"head\":\"$branch_name\",\"base\":\"main\",\"body\":\"This pull request was automatically created by the workflow.\"}" \
-            https://api.github.com/repos/${{ github.repository }}/pulls
-
-      - name: Merge Pull Requests
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -e
-          set -x
-          prs=$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            https://api.github.com/repos/${{ github.repository }}/pulls | jq -r '.[].number')
-          for pr in $prs; do
-            curl -X PUT \
-              -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-              -H "Content-Type: application/json" \
-              -d "{\"commit_title\":\"Merging Auto PR #$pr\",\"merge_method\":\"squash\"}" \
-              https://api.github.com/repos/${{ github.repository }}/pulls/$pr/merge
-          done
-
-      - name: Delete Merged Branches
-        run: |
-          set -e
-          set -x
-          branches=$(git branch -r --merged | grep -v 'main' | grep -v 'HEAD' | sed 's/origin\///')
-          for branch in $branches; do
-            git push origin --delete "$branch"
-          done
-
-      - name: Run Linter
-        uses: github/super-linter@v4
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Automated Testing
-        run: |
-          set -e
-          set -x
-          if [ -f "tests/test_script.sh" ]; then
-            bash tests/test_script.sh
+          # Create notification content
+          NOTIFICATION_TITLE="Workflow Run Complete: ${{ github.workflow }}"
+          
+          # Determine workflow status
+          if [ "${{ needs.create-pull-request.result }}" == "success" ]; then
+            STATUS="✅ Success"
+          elif [ "${{ needs.create-pull-request.result }}" == "cancelled" ]; then
+            STATUS="⚠️ Cancelled"
           else
-            echo "No test script found. Skipping tests."
+            STATUS="❌ Failed"
           fi
-
-      - name: Notifications
+          
+          # Generate detailed message
+          MESSAGE=$(cat << EOF
+          ## Workflow Summary
+          - **Repository:** ${{ github.repository }}
+          - **Workflow:** ${{ github.workflow }}
+          - **Run ID:** ${{ github.run_id }}
+          - **Status:** $STATUS
+          - **Triggered By:** ${{ github.event_name }}
+          - **Priority Level:** ${{ inputs.priority_level || 'MEDIUM' }}
+          
+          ### Job Details
+          - Validation: ${{ needs.validate-workflow.result }}
+          - Environment Setup: ${{ needs.initialize-environment.result }}
+          - Dependencies: ${{ needs.setup-dependencies.result }}
+          - Content Generation: ${{ needs.generate-content.result }}
+          - Code Analysis: ${{ needs.analyze-code.result }}
+          - Pull Request: ${{ needs.create-pull-request.result }}
+          
+          View run details: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          EOF
+          )
+          
+          # Save message for use in next steps
+          echo "$MESSAGE" > notification_message.txt
+          
+      - name: Send Slack Notification
+        if: env.SLACK_WEBHOOK_URL != ''
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
-          set -e
-          set -x
-          if [ -n "$SLACK_WEBHOOK_URL" ]; then
-            curl -X POST \
-              -H 'Content-type: application/json' \
-              --data '{"text":"Workflow completed successfully!"}' \
-              "$SLACK_WEBHOOK_URL"
+          MESSAGE=$(cat notification_message.txt)
+          
+          # Convert markdown to Slack format
+          SLACK_MESSAGE=$(echo "$MESSAGE" | sed 's/^###/>/g' | sed 's/^##/>/g' | sed 's/\*\*\([^*]*\)\*\*/\*\1\*/g')
+          
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{
+              \"text\": \"$SLACK_MESSAGE\",
+              \"blocks\": [
+                {
+                  \"type\": \"header\",
+                  \"text\": {
+                    \"type\": \"plain_text\",
+                    \"text\": \"$NOTIFICATION_TITLE\"
+                  }
+                },
+                {
+                  \"type\": \"section\",
+                  \"text\": {
+                    \"type\": \"mrkdwn\",
+                    \"text\": \"$SLACK_MESSAGE\"
+                  }
+                }
+              ]
+            }" $SLACK_WEBHOOK_URL
+            
+      - name: Send Email Notification
+        if: env.EMAIL_RECIPIENT != ''
+        env:
+          EMAIL_RECIPIENT: ${{ secrets.EMAIL_RECIPIENT }}
+          SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+        run: |
+          MESSAGE=$(cat notification_message.txt)
+          
+          # Send email using mailx
+          echo "$MESSAGE" | mailx -v \
+            -r "GitHub Actions <noreply@github.com>" \
+            -s "$NOTIFICATION_TITLE" \
+            -S smtp="$SMTP_SERVER:$SMTP_PORT" \
+            -S smtp-use-starttls \
+            -S smtp-auth=login \
+            -S smtp-auth-user="$SMTP_USERNAME" \
+            -S smtp-auth-password="$SMTP_PASSWORD" \
+            "$EMAIL_RECIPIENT"
+
+      - name: Create Issue for Failures
+        if: failure()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Add rate limit handling
+          RATE_LIMIT=$(curl -s \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            https://api.github.com/rate_limit)
+          REMAINING=$(echo $RATE_LIMIT | jq .rate.remaining)
+          
+          if [ "$REMAINING" -lt "10" ]; then
+            echo "API rate limit nearly exhausted, waiting..."
+            sleep 300
           fi
-
-      - name: Cleanup Temporary Files
-        run: find . -name "auto_file_*.txt" -delete
-
-      - name: Archive Logs and Generate Documentation
+          
+      - name: Update Status Check
         run: |
-          set -e
-          set -x
-          echo "Generating documentation..." >> logs/workflow.log
-          echo "Workflow completed successfully on $(date)." >> logs/workflow.log
-          log_size=$(du -k logs/workflow.log | cut -f1)
-          if [ "$log_size" -gt 1024 ]; then
-            gzip logs/workflow.log
-            echo "Log archived."
+          if [ "${{ needs.create-pull-request.result }}" != "success" ]; then
+            echo "::error::Workflow completed with status: ${{ needs.create-pull-request.result }}"
+            exit 1
           fi

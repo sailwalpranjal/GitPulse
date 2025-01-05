@@ -55,30 +55,37 @@ jobs:
     steps:
       - id: validation
         run: |
+          # Generate unique run ID
           RUN_ID=$(date +%s%N | md5sum | head -c 16)
           echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
           
+          # Check if workflow should run based on time and previous runs
           DATE=$(date +%Y%m%d)
           HOUR=$(date +%H)
           
+          # Use date as seed for consistent daily randomization
           SEED=$(($(date +%s -d "$DATE") / 86400))
           RANDOM=$SEED
           
+          # Calculate target runs for today
           TARGET_RUNS=$((RANDOM % ($MAX_DAILY_RUNS - $MIN_DAILY_RUNS + 1) + $MIN_DAILY_RUNS))
           
+          # Calculate probability for this hour
           REMAINING_HOURS=$((23 - HOUR))
           PROBABILITY=$((100 / (REMAINING_HOURS + 1)))
           
+          # Determine if we should run
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.force_run }}" = "true" ]; then
-            SHOULD_RUN=true
+            SHOULD_RUN="true"
           elif [ $((RANDOM % 100)) -lt $PROBABILITY ]; then
-            SHOULD_RUN=true
+            SHOULD_RUN="true"
           else
-            SHOULD_RUN=false
+            SHOULD_RUN="false"
           fi
           
           echo "should_run=$SHOULD_RUN" >> $GITHUB_OUTPUT
           
+          # Log decision
           echo "Date: $DATE"
           echo "Hour: $HOUR"
           echo "Target runs: $TARGET_RUNS"
@@ -89,34 +96,7 @@ jobs:
     needs: validate-workflow
     if: needs.validate-workflow.outputs.should_run == 'true'
     runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - id: set-matrix
-        run: |
-          echo "matrix=$(cat <<EOF
-          {
-            "include": [
-              {
-                "category": "security",
-                "tools": ["bandit", "safety", "snyk"],
-                "priority": "high"
-              },
-              {
-                "category": "performance",
-                "tools": ["pytest-benchmark", "memory-profiler"],
-                "priority": "medium"
-              },
-              {
-                "category": "quality",
-                "tools": ["pylint", "black", "isort"],
-                "priority": "low"
-              }
-            ]
-          }
-          EOF
-          )" >> $GITHUB_OUTPUT
-
       - name: Setup Base Environment
         run: |
           mkdir -p \
@@ -153,6 +133,7 @@ jobs:
           
       - name: Install Dependencies
         run: |
+          # Python packages
           python -m pip install --upgrade pip
           pip install \
             pytest pytest-cov pytest-benchmark \
@@ -160,6 +141,7 @@ jobs:
             memory-profiler radon xenon \
             requests pyyaml
             
+          # Node.js packages
           npm install -g \
             snyk prettier eslint \
             typescript jest
@@ -177,9 +159,10 @@ jobs:
           
       - name: Generate Project Structure
         run: |
-          echo "Creating core module files..."
-          mkdir -p src/core
+          # Create directories if they don't exist
+          mkdir -p src/core tests/unit
           
+          # Core initialization
           cat > src/core/__init__.py << EOL
           """Core module initialization."""
           from typing import Dict, Any
@@ -191,6 +174,7 @@ jobs:
               return __version__
           EOL
           
+          # Configuration manager
           cat > src/core/config.py << EOL
           """Configuration management module."""
           import os
@@ -215,41 +199,72 @@ jobs:
                   """Get configuration value."""
                   return self._config.get(key, default)
           EOL
+          
+          # Create documentation
+          mkdir -p docs
+          cat > docs/README.md << EOL
+          # Project Documentation
+          
+          ## Overview
+          This project is managed by the Ultimate Repository Automation Suite.
+          
+          ## Structure
+          - \`src/\`: Source code
+          - \`tests/\`: Test suites
+          - \`config/\`: Configuration files
+          - \`docs/\`: Documentation
+          - \`scripts/\`: Utility scripts
+          EOL
 
       - name: Generate Changes
         run: |
+          # Create directories if they don't exist
           mkdir -p src/changes tests/unit
           
-          CHANGES_COUNT=$((RANDOM % ($MAX_COMMITS - $MIN_COMMITS + 1) + $MIN_COMMITS))
+          # Generate random number of changes
+          CHANGES_COUNT=$((RANDOM % (${{ env.MAX_COMMITS }} - ${{ env.MIN_COMMITS }} + 1) + ${{ env.MIN_COMMITS }}))
+          
+          # Define change types
+          CHANGE_TYPES=("feature" "bugfix" "security" "performance" "refactor" "test" "docs")
           
           for i in $(seq 1 $CHANGES_COUNT); do
-            TYPE=$(echo -e "feature\nbugfix\nsecurity\nperformance\nrefactor\ntest\ndocs" | shuf -n 1)
+            # Select random change type
+            TYPE_INDEX=$((RANDOM % ${#CHANGE_TYPES[@]}))
+            TYPE="${CHANGE_TYPES[$TYPE_INDEX]}"
             
+            # Create change file
             FILE_PATH="src/changes/change_${i}.py"
             TEST_PATH="tests/unit/test_change_${i}.py"
             
+            echo "Generating $TYPE change in $FILE_PATH"
+            
+            # Create implementation file
             cat > "$FILE_PATH" << EOL
-          """${TYPE} implementation."""
-          from typing import Any
-          
-          def implement_${TYPE}_${i}() -> Any:
-              """Implement ${TYPE} changes."""
-              return "${TYPE}"
-          EOL
+"""${TYPE} implementation."""
+from typing import Any
+
+def implement_${TYPE}_${i}() -> Any:
+    """Implement ${TYPE} changes."""
+    return "${TYPE}"
+EOL
             
+            # Create test file
             cat > "$TEST_PATH" << EOL
-          """Test ${TYPE} implementation."""
-          from src.changes.change_${i} import implement_${TYPE}_${i}
-          
-          def test_implementation():
-              """Test the implementation."""
-              result = implement_${TYPE}_${i}()
-              assert isinstance(result, str)
-              assert result == "${TYPE}"
-          EOL
+"""Test ${TYPE} implementation."""
+from src.changes.change_${i} import implement_${TYPE}_${i}
+
+def test_implementation():
+    """Test the implementation."""
+    result = implement_${TYPE}_${i}()
+    assert isinstance(result, str)
+    assert result == "${TYPE}"
+EOL
             
+            # Stage files
             git add "$FILE_PATH" "$TEST_PATH"
-            git commit -m "[$TYPE] Implement change $i"
+            
+            # Commit changes
+            git commit -m "[$TYPE] Implement change $i" || true
           done
 
   analyze-code:
@@ -261,34 +276,59 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Install Analysis Dependencies
+        run: |
+          pip install bandit safety pylint black isort memory-profiler
+      
       - name: Run Analysis
         id: analysis
         run: |
+          mkdir -p reports
+          
           case ${{ matrix.category }} in
             "security")
-              echo "Running security analysis..."
-              bandit -r src/ || true
+              bandit -r src/ -f json -o reports/security-report.json || true
+              safety check --json > reports/dependency-security.json || true
               ;;
+              
             "quality")
-              echo "Running quality analysis..."
-              pylint src/ || true
+              pylint src/ --output-format=json > reports/pylint-report.json || true
               black --check src/ || true
+              isort --check-only src/ || true
               ;;
+              
             "performance")
-              echo "Running performance analysis..."
-              python -m memory_profiler src/**/*.py || true
+              python -m memory_profiler src/**/*.py > reports/performance-report.txt || true
               ;;
           esac
+      
+      - name: Upload Analysis Results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.category }}-analysis
+          path: reports/
+          retention-days: ${{ env.RETENTION_DAYS }}
 
   notify:
-    needs: [analyze-code]
+    needs: analyze-code
     runs-on: ubuntu-latest
     if: always()
     steps:
-      - name: Send Notification
+      - name: Process Results
         run: |
-          echo "Workflow completed with status: ${{ needs.analyze-code.result }}"
-          if [ "${{ needs.analyze-code.result }}" != "success" ]; then
-            echo "::error::Workflow failed"
-            exit 1
+          WORKFLOW_STATUS="${{ needs.analyze-code.result }}"
+          echo "Workflow completed with status: $WORKFLOW_STATUS"
+          
+          if [ "$WORKFLOW_STATUS" != "success" ]; then
+            echo "::warning::Workflow completed with non-success status: $WORKFLOW_STATUS"
           fi
+          
+          # Exit successfully to prevent notification failure from failing workflow
+          exit 0

@@ -22,23 +22,16 @@ on:
         default: 'MEDIUM'
 
 env:
-  # Configuration
   MAX_DAILY_RUNS: 30
   MIN_DAILY_RUNS: 1
   MIN_COMMITS: 15
   MAX_COMMITS: 20
   RETENTION_DAYS: 14
-  
-  # Thresholds
   HIGH_PRIORITY_THRESHOLD: 'CRITICAL'
   COMPLEXITY_THRESHOLD: 10
   MAINTAINABILITY_THRESHOLD: 65
-  
-  # Versions
   NODE_VERSION: '18'
   PYTHON_VERSION: '3.10'
-  
-  # Other settings
   TZ: 'UTC'
 
 defaults:
@@ -55,26 +48,20 @@ jobs:
     steps:
       - id: validation
         run: |
-          # Generate unique run ID
           RUN_ID=$(date +%s%N | md5sum | head -c 16)
           echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
           
-          # Check if workflow should run based on time and previous runs
           DATE=$(date +%Y%m%d)
           HOUR=$(date +%H)
           
-          # Use date as seed for consistent daily randomization
           SEED=$(($(date +%s -d "$DATE") / 86400))
           RANDOM=$SEED
           
-          # Calculate target runs for today
           TARGET_RUNS=$((RANDOM % ($MAX_DAILY_RUNS - $MIN_DAILY_RUNS + 1) + $MIN_DAILY_RUNS))
           
-          # Calculate probability for this hour
           REMAINING_HOURS=$((23 - HOUR))
           PROBABILITY=$((100 / (REMAINING_HOURS + 1)))
           
-          # Determine if we should run
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.force_run }}" = "true" ]; then
             SHOULD_RUN="true"
           elif [ $((RANDOM % 100)) -lt $PROBABILITY ]; then
@@ -84,13 +71,6 @@ jobs:
           fi
           
           echo "should_run=$SHOULD_RUN" >> $GITHUB_OUTPUT
-          
-          # Log decision
-          echo "Date: $DATE"
-          echo "Hour: $HOUR"
-          echo "Target runs: $TARGET_RUNS"
-          echo "Probability: $PROBABILITY%"
-          echo "Decision: $SHOULD_RUN"
 
   initialize-environment:
     needs: validate-workflow
@@ -118,52 +98,33 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
-          
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
-          
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
+      - uses: actions/setup-node@v3
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          
       - name: Install Dependencies
         run: |
-          # Python packages
           python -m pip install --upgrade pip
-          pip install \
-            pytest pytest-cov pytest-benchmark \
-            black isort pylint bandit safety \
-            memory-profiler radon xenon \
-            requests pyyaml
-            
-          # Node.js packages
-          npm install -g \
-            snyk prettier eslint \
-            typescript jest
+          pip install pytest pytest-cov pytest-benchmark black isort pylint bandit safety memory-profiler radon xenon requests pyyaml
+          npm install -g snyk prettier eslint typescript jest
 
   generate-content:
     needs: setup-dependencies
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      
       - name: Configure Git
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          
       - name: Generate Project Structure
         run: |
-          # Create directories if they don't exist
           mkdir -p src/core tests/unit
-          
-          # Core initialization
-          cat > src/core/__init__.py << EOL
+          cat > src/core/__init__.py << 'EOL'
           """Core module initialization."""
           from typing import Dict, Any
           
@@ -174,98 +135,26 @@ jobs:
               return __version__
           EOL
           
-          # Configuration manager
-          cat > src/core/config.py << EOL
+          cat > src/core/config.py << 'EOL'
           """Configuration management module."""
           import os
           import yaml
           from typing import Dict, Any, Optional
           
           class ConfigManager:
-              """Manage application configuration."""
-              
               def __init__(self, config_path: Optional[str] = None):
                   self.config_path = config_path or "config/default.yml"
                   self._config: Dict[str, Any] = {}
                   
               def load(self) -> Dict[str, Any]:
-                  """Load configuration from file."""
                   if os.path.exists(self.config_path):
                       with open(self.config_path, 'r') as f:
                           self._config = yaml.safe_load(f)
                   return self._config
                   
               def get(self, key: str, default: Any = None) -> Any:
-                  """Get configuration value."""
                   return self._config.get(key, default)
           EOL
-          
-          # Create documentation
-          mkdir -p docs
-          cat > docs/README.md << EOL
-          # Project Documentation
-          
-          ## Overview
-          This project is managed by the Ultimate Repository Automation Suite.
-          
-          ## Structure
-          - \`src/\`: Source code
-          - \`tests/\`: Test suites
-          - \`config/\`: Configuration files
-          - \`docs/\`: Documentation
-          - \`scripts/\`: Utility scripts
-          EOL
-
-      - name: Generate Changes
-        run: |
-          # Create directories if they don't exist
-          mkdir -p src/changes tests/unit
-          
-          # Generate random number of changes
-          CHANGES_COUNT=$((RANDOM % (${{ env.MAX_COMMITS }} - ${{ env.MIN_COMMITS }} + 1) + ${{ env.MIN_COMMITS }}))
-          
-          # Define change types
-          CHANGE_TYPES=("feature" "bugfix" "security" "performance" "refactor" "test" "docs")
-          
-          for i in $(seq 1 $CHANGES_COUNT); do
-            # Select random change type
-            TYPE_INDEX=$((RANDOM % ${#CHANGE_TYPES[@]}))
-            TYPE="${CHANGE_TYPES[$TYPE_INDEX]}"
-            
-            # Create change file
-            FILE_PATH="src/changes/change_${i}.py"
-            TEST_PATH="tests/unit/test_change_${i}.py"
-            
-            echo "Generating $TYPE change in $FILE_PATH"
-            
-            # Create implementation file
-            cat > "$FILE_PATH" << EOL
-"""${TYPE} implementation."""
-from typing import Any
-
-def implement_${TYPE}_${i}() -> Any:
-    """Implement ${TYPE} changes."""
-    return "${TYPE}"
-EOL
-            
-            # Create test file
-            cat > "$TEST_PATH" << EOL
-"""Test ${TYPE} implementation."""
-from src.changes.change_${i} import implement_${TYPE}_${i}
-
-def test_implementation():
-    """Test the implementation."""
-    result = implement_${TYPE}_${i}()
-    assert isinstance(result, str)
-    assert result == "${TYPE}"
-EOL
-            
-            # Stage files
-            git add "$FILE_PATH" "$TEST_PATH"
-            
-            # Commit changes
-            git commit -m "[$TYPE] Implement change $i" || true
-          done
 
   analyze-code:
     needs: generate-content
@@ -275,40 +164,30 @@ EOL
         category: [security, quality, performance]
     steps:
       - uses: actions/checkout@v3
-      
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
-      
       - name: Install Analysis Dependencies
-        run: |
-          pip install bandit safety pylint black isort memory-profiler
-      
+        run: pip install bandit safety pylint black isort memory-profiler
       - name: Run Analysis
-        id: analysis
         run: |
           mkdir -p reports
-          
           case ${{ matrix.category }} in
             "security")
               bandit -r src/ -f json -o reports/security-report.json || true
               safety check --json > reports/dependency-security.json || true
               ;;
-              
             "quality")
               pylint src/ --output-format=json > reports/pylint-report.json || true
               black --check src/ || true
               isort --check-only src/ || true
               ;;
-              
             "performance")
               python -m memory_profiler src/**/*.py > reports/performance-report.txt || true
               ;;
           esac
-      
-      - name: Upload Analysis Results
+      - name: Upload Results
         if: always()
         uses: actions/upload-artifact@v3
         with:
@@ -317,14 +196,14 @@ EOL
           retention-days: ${{ env.RETENTION_DAYS }}
 
   notify:
-    if: always()
-    needs: [analyze-code]
+    needs: analyze-code
     runs-on: ubuntu-latest
+    if: always()
     steps:
-      - name: Process Results
+      - name: Send Notification
         run: |
-          echo "Workflow Status: ${{ needs.analyze-code.result }}"
-          
           if [ "${{ needs.analyze-code.result }}" != "success" ]; then
             echo "::warning::Workflow completed with status: ${{ needs.analyze-code.result }}"
+          else
+            echo "Workflow completed successfully"
           fi

@@ -317,18 +317,14 @@ EOL
           retention-days: ${{ env.RETENTION_DAYS }}
 
   notify:
-    needs: analyze-code
-    runs-on: ubuntu-latest
     if: always()
+    needs: [analyze-code]
+    runs-on: ubuntu-latest
     steps:
       - name: Process Results
         run: |
-          WORKFLOW_STATUS="${{ needs.analyze-code.result }}"
-          echo "Workflow completed with status: $WORKFLOW_STATUS"
+          echo "Workflow Status: ${{ needs.analyze-code.result }}"
           
-          if [ "$WORKFLOW_STATUS" != "success" ]; then
-            echo "::warning::Workflow completed with non-success status: $WORKFLOW_STATUS"
+          if [ "${{ needs.analyze-code.result }}" != "success" ]; then
+            echo "::warning::Workflow completed with status: ${{ needs.analyze-code.result }}"
           fi
-          
-          # Exit successfully to prevent notification failure from failing workflow
-          exit 0

@@ -26,9 +26,6 @@ jobs:
           echo -e "# GitPulse\n\nThis repository handles automated commits and repository management." > docs/README.md
           echo "Log file initialized for workflow tracking." > logs/gitpulse.log
 
-          echo -e "#!/bin/bash\n# Notification script\n\necho \"Sending notifications...\"" > scripts/custom_notifications.sh
-          chmod +x scripts/custom_notifications.sh
-
           echo "Sample data for testing purposes." > data/sample_data.txt
           echo -e "#!/bin/bash\n# Cleanup script\n\necho \"Performing cleanup...\"" > cleanup/cleanup.sh
           chmod +x cleanup/cleanup.sh
@@ -136,14 +133,6 @@ jobs:
             echo "No test script found. Skipping tests."
           fi
 
-      - name: Custom Notifications
-        run: |
-          if [ -n "$SLACK_WEBHOOK_URL" ]; then
-            curl -X POST \
-              -H 'Content-type: application/json' \
-              --data '{"text":"Auto-commit workflow completed successfully!"}' \
-              "$SLACK_WEBHOOK_URL"
-          fi
 
       - name: Cleanup
         run: |
